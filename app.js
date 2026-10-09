@@ -209,6 +209,7 @@
     $('shareScreenBtn').classList.toggle('streaming', !!state.screenStream);
     $('shareScreenBtn').innerHTML = state.screenStream ? '<i data-lucide="monitor-x"></i><span>Parar transmissão</span>' : '<i data-lucide="monitor-up"></i><span>Transmitir tela</span>';
     $('voiceCount').textContent = voiceMembers(state.selectedChannelId).length + ' participantes';
+    renderMediaHealth();
     $('participantTiles').innerHTML = voiceMembers(state.selectedChannelId).map((u) =>
       '<button class="participant-card" data-watch="' + escapeHTML(u.id) + '" title="' + (u.sharing ? 'Assistir à transmissão' : 'Participante') + '">' +
       avatar(u.name) + '<b>' + escapeHTML(u.name) + (u.id === state.myPeerId ? ' (você)' : '') + '</b>' +
@@ -223,6 +224,44 @@
       else toast('Este participante não está transmitindo uma tela.');
     }));
     icons();
+  }
+  function renderMediaHealth() {
+    const box = $('mediaHealth');
+    if (!box || state.selectedType !== 'voice') return;
+    if (!state.voiceChannelId || state.voiceChannelId !== state.selectedChannelId) {
+      box.textContent = 'Entre na sala para receber a voz e a transmissão dos participantes.';
+      box.classList.remove('media-warning');
+      return;
+    }
+    const peers = voiceMembers(state.voiceChannelId).filter((m) => m.id !== state.myPeerId);
+    if (!peers.length) {
+      box.textContent = 'Aguardando amigos na sala.';
+      box.classList.remove('media-warning');
+      return;
+    }
+    const statuses = [];
+    let missing = false;
+    peers.forEach((member) => {
+      if (member.mic) {
+        const audio = state.remoteAudio.get(member.id);
+        const track = audio && audio.srcObject && audio.srcObject.getAudioTracks()[0];
+        const alive = !!track && track.readyState === 'live';
+        const receiving = alive && !track.muted && !audio.paused;
+        statuses.push('Voz de ' + member.name + ': ' +
+          (receiving ? 'recebendo' : alive && audio.paused ? 'som bloqueado' : 'conectando...'));
+        if (!receiving) missing = true;
+      }
+      if (member.sharing) {
+        const stream = state.remoteScreens.get(member.id);
+        const track = stream && stream.getVideoTracks()[0];
+        const receiving = !!track && track.readyState === 'live' && !track.muted;
+        statuses.push('Tela de ' + member.name + ': ' + (receiving ? 'recebendo' : 'conectando...'));
+        if (!receiving) missing = true;
+      }
+    });
+    box.textContent = statuses.length ? statuses.join('  •  ') :
+      'Os participantes ainda não ativaram o microfone ou a transmissão.';
+    box.classList.toggle('media-warning', missing);
   }
   function renderStage() {
     if (state.selectedType !== 'voice') return;
@@ -818,21 +857,51 @@
     toast('Seu navegador bloqueou o som. Clique em "Liberar áudio" na sala.');
   }
   function unlockPlayback() {
-    // Called from a user click. Re-triggering play satisfies autoplay policies.
-    const promises = [];
+    // This button uses an explicit user interaction to unlock audio playback.
+    // Play a quiet test tone so the user can verify their output device.
+    const AudioContextType = window.AudioContext || window.webkitAudioContext;
+    if (AudioContextType) {
+      try {
+        const ctx = new AudioContextType();
+        const oscillator = ctx.createOscillator();
+        const gain = ctx.createGain();
+        oscillator.type = 'sine';
+        oscillator.frequency.value = 660;
+        gain.gain.value = 0.06;
+        oscillator.connect(gain);
+        gain.connect(ctx.destination);
+        ctx.resume().then(() => {
+          oscillator.start();
+          oscillator.stop(ctx.currentTime + 0.2);
+          oscillator.onended = () => ctx.close().catch(() => {});
+        }).catch(() => { ctx.close().catch(() => {}); });
+      } catch (error) {
+        console.warn('Discordo: teste de saída indisponível', error);
+      }
+    }
+    const playbacks = [];
     state.remoteAudio.forEach((audio) => {
       audio.muted = false;
       audio.volume = 1;
-      promises.push(audio.play().catch(() => {}));
+      playbacks.push(audio.play());
     });
     const video = $('playingScreen');
-    if (video && video.srcObject && !video.muted) promises.push(video.play().catch(() => {}));
-    state.playbackBlocked = false;
-    renderToolbar();
-    Promise.all(promises).then(() => {
-      toast(state.remoteAudio.size ? 'Áudio liberado. Confira também o volume do Windows.' :
-        'Som habilitado. Quando alguém ligar o microfone, você poderá ouvir.');
+    if (video && video.srcObject && !video.muted) playbacks.push(video.play());
+    Promise.allSettled(playbacks).then((results) => {
+      state.playbackBlocked = results.some((result) => result.status === 'rejected');
+      renderToolbar();
+      renderMediaHealth();
+      toast(state.playbackBlocked ? 'O navegador ainda bloqueia áudio. Confira a permissão de som deste site.' :
+        'Teste de som executado. Se não ouviu o sinal, confira o volume ou saída de áudio do Windows.');
     });
+  }
+  function retryMediaNow() {
+    if (!state.voiceChannelId) return toast('Entre na sala de voz primeiro.');
+    state.mediaRequests.clear();
+    requestMissingMedia();
+    reconcileOutgoing();
+    toast('Solicitando novamente a voz e as telas dos participantes...');
+    renderMediaHealth();
   }
   function reconcileOutgoing() {
     if (!state.peer || !state.peer.open || !state.voiceChannelId) return;
@@ -870,6 +939,7 @@
         state.stageKey = '';
         renderStage();
         renderToolbar();
+        renderMediaHealth();
       } else {
         let audio = state.remoteAudio.get(call.peer);
         if (audio) audio.remove();
@@ -879,9 +949,18 @@
         audio.srcObject = stream;
         audio.dataset.peer = call.peer;
         document.body.appendChild(audio);
-        audio.play().catch(() => markPlaybackBlocked());
+        audio.muted = false;
+        audio.volume = 1;
         state.remoteAudio.set(call.peer, audio);
+        const audioTrack = stream.getAudioTracks()[0];
+        if (audioTrack) {
+          audioTrack.onmute = renderMediaHealth;
+          audioTrack.onunmute = renderMediaHealth;
+          audioTrack.onended = renderMediaHealth;
+        }
+        audio.play().then(renderMediaHealth).catch(() => { markPlaybackBlocked(); renderMediaHealth(); });
         state.mediaRequests.delete(call.peer + ':mic');
+        renderMediaHealth();
       }
     });
     call.on('close', () => removeIncoming(key, call));
@@ -901,6 +980,7 @@
       if (audio) audio.remove();
       state.remoteAudio.delete(call.peer);
     }
+    if (state.voiceChannelId) { setTimeout(requestMissingMedia, 1200); renderMediaHealth(); }
   }
 
   $('createServerBtn').addEventListener('click', serverDialog);
@@ -916,6 +996,7 @@
   $('toggleMicBtn').addEventListener('click', toggleMic);
   $('shareScreenBtn').addEventListener('click', toggleScreen);
   $('enableAudioBtn').addEventListener('click', unlockPlayback);
+  $('retryMediaBtn').addEventListener('click', retryMediaNow);
   $('membersBtn').addEventListener('click', () => {
     state.showMembers = !state.showMembers;
     renderMembers();
