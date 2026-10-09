@@ -4,9 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#111319">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Discordo">
+  <meta name="application-name" content="Discordo">
   <meta name="description" content="Discordo: conversas, voz e compartilhamento de tela ao vivo em salas privadas.">
   <title>Discordo — Conecte sua galera</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" sizes="192x192" href="icons/icon-192.png">
+  <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -44,6 +50,7 @@
         <span class="header-divider"></span><span id="headerDescription" class="header-description">O começo de toda boa conversa</span>
         <div class="header-spacer"></div>
         <span class="connected-status"><span class="online-dot"></span><span id="onlineCount">1 online</span></span>
+        <button id="installAppBtn" class="header-action install-action" title="Instalar Discordo no dispositivo"><i data-lucide="download"></i><span>Instalar app</span></button>
         <button id="inviteBtn" class="header-action" title="Convidar amigos"><i data-lucide="user-round-plus"></i><span>Convidar</span></button>
         <button id="membersBtn" class="icon-button members-toggle" title="Mostrar participantes"><i data-lucide="users"></i></button>
       </header>
@@ -76,5 +83,6 @@
   <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js" defer></script>
   <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js" defer></script>
   <script src="app.js" defer></script>
+  <script src="pwa.js" defer></script>
 </body>
 </html>
