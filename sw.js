@@ -1,5 +1,5 @@
 /* Discordo app shell cache. Live calls always require an internet connection. */
-const CACHE = 'discordo-shell-2026-10-09-v3';
+const CACHE = 'discordo-shell-2026-10-09-v4';
 const APP_FILES = [
   './',
   './index.html',
