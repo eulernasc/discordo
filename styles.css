@@ -2,3 +2,5 @@
 .install-action{background:#264c46;color:#94eed0;border:1px solid #37675a;white-space:nowrap}.install-action:hover{background:#2d6455;color:white}.install-action.installed{display:none}@media(max-width:720px){.install-action{padding:9px}.install-action span{display:none}}
 
 .audio-button{background:#3c4257;color:#dddfff}.audio-button.audio-blocked{background:#cb8547;color:#fff;animation:audio-blink 1.8s ease-in-out infinite}@keyframes audio-blink{50%{filter:brightness(1.3)}}
+
+.media-health{text-align:center;font-size:11px;font-weight:650;color:#55daa5;line-height:1.6;padding:9px 14px;border:1px solid #366454;background:#23403544;border-radius:9px;word-break:break-word}.media-health.media-warning{color:#f1bb77;background:#674b2a33;border-color:#715a3c}
