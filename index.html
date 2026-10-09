@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#111319">
+  <meta name="description" content="Discordo: conversas, voz e compartilhamento de tela ao vivo em salas privadas.">
+  <title>Discordo — Conecte sua galera</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app" class="app">
+    <nav class="server-rail" aria-label="Seus servidores">
+      <button class="brand-logo" id="homeBtn" title="Discordo"><i data-lucide="audio-lines"></i></button>
+      <div class="rail-separator"></div>
+      <div id="serverList" class="server-list"></div>
+      <button id="createServerBtn" class="rail-add" title="Criar ou entrar em servidor"><i data-lucide="plus"></i></button>
+      <div class="rail-bottom"><span class="online-dot"></span></div>
+    </nav>
+    <aside class="sidebar" id="sidebar">
+      <button id="serverHeader" class="server-header"><span id="serverTitle">Discordo</span><i data-lucide="chevron-down"></i></button>
+      <div class="server-body">
+        <div class="server-banner"><div class="banner-glow"></div><span>SEU ESPAÇO, SUAS CONVERSAS</span><strong>Juntos, mesmo de longe.</strong><small>Converse, jogue e compartilhe sua tela.</small></div>
+        <div class="channel-heading"><span>CANAIS DE TEXTO</span><button class="icon-button" id="addTextBtn" title="Adicionar canal de texto"><i data-lucide="plus"></i></button></div>
+        <div id="textChannelList" class="channel-list"></div>
+        <div class="channel-heading voice-heading"><span>CANAIS DE VOZ</span><button class="icon-button" id="addVoiceBtn" title="Adicionar canal de voz"><i data-lucide="plus"></i></button></div>
+        <div id="voiceChannelList" class="channel-list"></div>
+      </div>
+      <div class="sidebar-footer">
+        <div id="voiceStatus" class="voice-status hidden"></div>
+        <div class="profile-bar">
+          <span id="profileAvatar" class="avatar">D</span>
+          <div class="profile-copy"><strong id="profileName">Visitante</strong><small id="profileStatus">Conectando...</small></div>
+          <button class="icon-button" id="renameBtn" title="Editar nome"><i data-lucide="settings"></i></button>
+        </div>
+      </div>
+    </aside>
+    <main class="main-area">
+      <header class="main-header">
+        <button id="mobileMenu" class="icon-button mobile-menu" title="Abrir canais"><i data-lucide="menu"></i></button>
+        <span id="headerIcon" class="header-channel-icon"><i data-lucide="hash"></i></span>
+        <strong id="headerTitle">geral</strong>
+        <span class="header-divider"></span><span id="headerDescription" class="header-description">O começo de toda boa conversa</span>
+        <div class="header-spacer"></div>
+        <span class="connected-status"><span class="online-dot"></span><span id="onlineCount">1 online</span></span>
+        <button id="inviteBtn" class="header-action" title="Convidar amigos"><i data-lucide="user-round-plus"></i><span>Convidar</span></button>
+        <button id="membersBtn" class="icon-button members-toggle" title="Mostrar participantes"><i data-lucide="users"></i></button>
+      </header>
+      <div id="textView" class="text-view">
+        <div id="messages" class="messages" aria-live="polite"></div>
+        <form id="messageForm" class="chat-compose">
+          <button type="button" class="compose-plus" id="chatHintBtn" title="Mensagens de texto"><i data-lucide="plus"></i></button>
+          <input id="messageInput" maxlength="1200" autocomplete="off" placeholder="Conversar em #geral" aria-label="Mensagem">
+          <button type="submit" class="compose-send" title="Enviar"><i data-lucide="send"></i></button>
+        </form>
+        <div class="compose-footnote">Enter para enviar • Seja legal com sua galera <span>✦</span></div>
+      </div>
+      <section id="voiceView" class="voice-view hidden">
+        <div class="voice-top"><div><span class="eyebrow"><span class="live-pulse"></span> SALA DE VOZ</span><h1 id="voiceHeading">Geral</h1><p>Conecte sua voz e mostre o que está acontecendo na sua tela.</p></div><span class="voice-count" id="voiceCount">0 participantes</span></div>
+        <div id="stage" class="stage"></div>
+        <div id="participantTiles" class="participant-tiles"></div>
+        <div class="call-toolbar">
+          <button id="joinVoiceBtn" class="toolbar-button join-button"><i data-lucide="headphones"></i><span>Entrar na sala</span></button>
+          <button id="toggleMicBtn" class="toolbar-button muted-button" disabled><i data-lucide="mic-off"></i><span>Ativar microfone</span></button>
+          <button id="shareScreenBtn" class="toolbar-button share-button" disabled><i data-lucide="monitor-up"></i><span>Transmitir tela</span></button>
+          <button id="leaveVoiceBtn" class="toolbar-button leave-button hidden"><i data-lucide="phone-off"></i><span>Sair</span></button>
+        </div>
+        <p class="stage-help" id="stageHelp"><i data-lucide="shield-check"></i> Sua tela só será compartilhada quando você clicar em “Transmitir tela” e autorizar no navegador.</p>
+      </section>
+    </main>
+    <aside id="memberPanel" class="members-panel"><div class="members-header">PARTICIPANTES <span id="memberCount">0</span></div><div id="memberList"></div><div class="member-note"><i data-lucide="lock-keyhole"></i> Sua sala é acessada com um convite.</div></aside>
+  </div>
+  <div id="overlay" class="overlay hidden"><div id="dialog" class="dialog" role="dialog" aria-modal="true"></div></div>
+  <div id="toast" class="toast hidden"></div>
+  <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js" defer></script>
+  <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js" defer></script>
+  <script src="app.js" defer></script>
+</body>
+</html>
