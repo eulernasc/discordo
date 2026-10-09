@@ -55,3 +55,13 @@ O GitHub Pages hospeda a interface. A comunicação e a tela passam diretamente 
 ## Próxima etapa para escala
 
 Para dezenas de pessoas, persistência de mensagens e permissões reais, migrar para autenticação e banco de dados (por exemplo Firebase) + uma SFU gerenciada (por exemplo LiveKit) com tokens de acesso gerados por backend e infraestrutura TURN. Isso não está incluso neste MVP.
+
+## Instalar como aplicativo (PWA)
+
+O Discordo pode ser instalado sem loja de aplicativos após abrir o **site publicado em HTTPS**. O ícone **Instalar app** aparece no cabeçalho; quando o navegador permite, um clique abre a confirmação da instalação. Quando não permite, o botão mostra instruções.
+
+- **Windows (Chrome ou Edge):** entre no site e use **Instalar app**, ou o ícone de instalação na barra de endereços. Depois ele abre em janela própria.
+- **Android (Chrome):** entre no site e use **Instalar app** ou **Menu → Instalar aplicativo / Adicionar à tela inicial**.
+- **iPhone (Safari):** abra o site no Safari e toque **Compartilhar → Adicionar à Tela de Início → Adicionar**.
+
+A instalação funciona como **PWA**, e não como arquivo executável nativo (.exe) ou aplicativo de App Store. Precisa de internet para chamadas, chat e transmissão, mesmo se a interface carregar com dados em cache. A transmissão de tela foi pensada principalmente para **Chrome/Edge de computador**; em celulares, as permissões de captura variam muito conforme navegador e sistema.
