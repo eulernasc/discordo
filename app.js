@@ -51,7 +51,7 @@
     generation: 0,
     reconnectTimer: null,
     toastTimer: null,
-    showMembers: true
+    showMembers: window.innerWidth > 1150
   };
 
   function load(key, fallback) {
@@ -188,6 +188,10 @@
     $('memberPanel').classList.toggle('show', state.showMembers);
   }
   function renderToolbar() {
+    $('voiceStatus').classList.toggle('hidden', !state.voiceChannelId);
+    $('voiceStatus').innerHTML = state.voiceChannelId ? '● Conectado ao canal <button id="voiceStatusLeave">Desconectar</button>' : '';
+    const voiceLeaveLink = $('voiceStatusLeave');
+    if (voiceLeaveLink) voiceLeaveLink.addEventListener('click', leaveVoice);
     if (state.selectedType !== 'voice') return;
     const joined = !!state.voiceChannelId && state.voiceChannelId === state.selectedChannelId;
     $('joinVoiceBtn').classList.toggle('hidden', joined);
@@ -199,10 +203,6 @@
     $('shareScreenBtn').classList.toggle('streaming', !!state.screenStream);
     $('shareScreenBtn').innerHTML = state.screenStream ? '<i data-lucide="monitor-x"></i><span>Parar transmissão</span>' : '<i data-lucide="monitor-up"></i><span>Transmitir tela</span>';
     $('voiceCount').textContent = voiceMembers(state.selectedChannelId).length + ' participantes';
-    $('voiceStatus').classList.toggle('hidden', !state.voiceChannelId);
-    $('voiceStatus').innerHTML = state.voiceChannelId ? '● Conectado ao canal <button id="voiceStatusLeave">Desconectar</button>' : '';
-    const leaveLink = $('voiceStatusLeave');
-    if (leaveLink) leaveLink.addEventListener('click', leaveVoice);
     $('participantTiles').innerHTML = voiceMembers(state.selectedChannelId).map((u) =>
       '<button class="participant-card" data-watch="' + escapeHTML(u.id) + '" title="' + (u.sharing ? 'Assistir à transmissão' : 'Participante') + '">' +
       avatar(u.name) + '<b>' + escapeHTML(u.name) + (u.id === state.myPeerId ? ' (você)' : '') + '</b>' +
