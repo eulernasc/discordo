@@ -45,6 +45,9 @@
     incoming: new Map(),
     remoteScreens: new Map(),
     remoteAudio: new Map(),
+    mediaRequests: new Map(),
+    mediaRetryTimer: null,
+    playbackBlocked: false,
     selectedScreen: '',
     messages: [],
     stageKey: '',
@@ -198,6 +201,9 @@
     $('leaveVoiceBtn').classList.toggle('hidden', !joined);
     $('toggleMicBtn').disabled = !joined;
     $('shareScreenBtn').disabled = !joined;
+    $('enableAudioBtn').classList.toggle('hidden', !joined);
+    $('enableAudioBtn').innerHTML = state.playbackBlocked ? '<i data-lucide="volume-x"></i><span>Liberar áudio</span>' : '<i data-lucide="volume-2"></i><span>Testar som</span>';
+    $('enableAudioBtn').classList.toggle('audio-blocked', state.playbackBlocked);
     $('toggleMicBtn').classList.toggle('active-mic', !!state.micStream);
     $('toggleMicBtn').innerHTML = state.micStream ? '<i data-lucide="mic"></i><span>Microfone ligado</span>' : '<i data-lucide="mic-off"></i><span>Ativar microfone</span>';
     $('shareScreenBtn').classList.toggle('streaming', !!state.screenStream);
@@ -244,7 +250,7 @@
       const video = $('playingScreen');
       video.srcObject = chosen.stream;
       video.muted = chosen.local;
-      video.play().catch(() => {});
+      video.play().catch(() => { if (!chosen.local) markPlaybackBlocked(); });
       $('fullscreenVideo').addEventListener('click', () => {
         if (video.requestFullscreen) video.requestFullscreen().catch(() => toast('Tela cheia indisponível neste navegador.'));
       });
@@ -427,7 +433,8 @@
         member.mic = !!data.mic && !!member.voiceChannelId;
         member.name = String(data.name || member.name).slice(0, 24);
         broadcastRoster();
-      } else if (data.type === 'chat' && member) handleChat(fromId, data);
+      } else if (data.type === 'media-request' && member) routeMediaRequest(fromId, data);
+      else if (data.type === 'chat' && member) handleChat(fromId, data);
       else if (data.type === 'channel-add' && member && data.channel) {
         const candidate = data.channel;
         const name = String(candidate.name || '').trim().slice(0, 35);
@@ -450,6 +457,7 @@
         renderAll();
         toast('Conectado à sala!');
       } else if (data.type === 'roster') applyRoster(data.members);
+      else if (data.type === 'media-request' && typeof data.requesterId === 'string' && ['mic', 'screen'].includes(data.kind)) restartOutgoingTo(data.requesterId, data.kind);
       else if (data.type === 'message' && validMessage(data.message)) addMessage(data.message);
       else if (data.type === 'config') {
         if (typeof data.serverName === 'string') server().name = data.serverName.slice(0, 60);
@@ -483,6 +491,7 @@
     cleanupInactiveCalls();
     renderPresence();
     reconcileOutgoing();
+    requestMissingMedia();
   }
   function cleanupInactiveCalls() {
     state.incoming.forEach((call, key) => {
@@ -631,6 +640,10 @@
     state.outgoing.clear();
     state.incoming.clear();
     state.remoteScreens.clear();
+    clearInterval(state.mediaRetryTimer);
+    state.mediaRetryTimer = null;
+    state.mediaRequests.clear();
+    state.playbackBlocked = false;
     state.guestConnections.forEach((conn) => { try { conn.close(); } catch (_) {} });
     state.guestConnections.clear();
     try { if (state.hostConnection) state.hostConnection.close(); } catch (_) {}
@@ -665,11 +678,17 @@
     if (state.voiceChannelId) leaveVoice();
     state.voiceChannelId = state.selectedChannelId;
     state.stageKey = '';
+    clearInterval(state.mediaRetryTimer);
+    state.mediaRetryTimer = setInterval(requestMissingMedia, 7000);
     updateSelf();
     renderPresence();
+    setTimeout(requestMissingMedia, 1600);
     toast('Você entrou no canal de voz.');
   }
   function leaveVoice() {
+    clearInterval(state.mediaRetryTimer);
+    state.mediaRetryTimer = null;
+    state.mediaRequests.clear();
     stopScreen();
     stopMic();
     state.outgoing.forEach((call) => { try { call.close(); } catch (_) {} });
@@ -682,6 +701,7 @@
     state.voiceChannelId = '';
     state.selectedScreen = '';
     state.stageKey = '';
+    state.playbackBlocked = false;
     updateSelf();
     renderPresence();
   }
@@ -713,7 +733,9 @@
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: { frameRate: { ideal: 30, max: 30 } },
-        audio: true
+        audio: true,
+        surfaceSwitching: 'include',
+        systemAudio: 'include'
       });
       if (!state.voiceChannelId) { stream.getTracks().forEach((t) => t.stop()); return; }
       state.screenStream = stream;
@@ -741,6 +763,75 @@
         try { call.close(); } catch (_) {}
         state.outgoing.delete(key);
       }
+    });
+  }
+  // Some callers start sharing before the receiver joins, or the network drops
+  // the initial WebRTC offer. Request a fresh outgoing call from the sender.
+  function requestMissingMedia() {
+    if (!state.voiceChannelId || !state.connected) return;
+    const now = Date.now();
+    state.members.forEach((member) => {
+      if (member.id === state.myPeerId || member.voiceChannelId !== state.voiceChannelId) return;
+      for (const kind of ['mic', 'screen']) {
+        if (!(kind === 'mic' ? member.mic : member.sharing)) continue;
+        const key = member.id + ':' + kind;
+        const received = kind === 'mic' ? state.remoteAudio.has(member.id) : state.remoteScreens.has(member.id);
+        if (received || now - (state.mediaRequests.get(key) || 0) < 9000) continue;
+        state.mediaRequests.set(key, now);
+        const packet = { type: 'media-request', targetId: member.id, kind };
+        if (state.isHost) routeMediaRequest(state.myPeerId, packet);
+        else if (state.hostConnection && state.hostConnection.open) state.hostConnection.send(packet);
+      }
+    });
+  }
+  function routeMediaRequest(requesterId, packet) {
+    if (!packet || !['mic', 'screen'].includes(packet.kind)) return;
+    const requester = state.members.get(requesterId);
+    const target = state.members.get(packet.targetId);
+    if (!requester || !target || requester.id === target.id ||
+        !requester.voiceChannelId || requester.voiceChannelId !== target.voiceChannelId) return;
+    if (!(packet.kind === 'mic' ? target.mic : target.sharing)) return;
+    if (packet.targetId === state.myPeerId) restartOutgoingTo(requesterId, packet.kind);
+    else {
+      const conn = state.guestConnections.get(packet.targetId);
+      if (conn && conn.open) conn.send({ type: 'media-request', requesterId, kind: packet.kind });
+    }
+  }
+  function restartOutgoingTo(peerId, kind) {
+    if (!state.peer || !state.peer.open || !state.voiceChannelId) return;
+    const target = state.members.get(peerId);
+    if (!target || target.voiceChannelId !== state.voiceChannelId) return;
+    const stream = kind === 'mic' ? state.micStream : state.screenStream;
+    if (!stream || !stream.active && stream.getTracks().every((t) => t.readyState === 'ended')) return;
+    const key = peerId + ':' + kind;
+    const previous = state.outgoing.get(key);
+    if (previous) {
+      state.outgoing.delete(key);
+      try { previous.close(); } catch (_) {}
+    }
+    startOutgoing(peerId, kind, stream);
+  }
+  function markPlaybackBlocked() {
+    if (state.playbackBlocked) return;
+    state.playbackBlocked = true;
+    renderToolbar();
+    toast('Seu navegador bloqueou o som. Clique em "Liberar áudio" na sala.');
+  }
+  function unlockPlayback() {
+    // Called from a user click. Re-triggering play satisfies autoplay policies.
+    const promises = [];
+    state.remoteAudio.forEach((audio) => {
+      audio.muted = false;
+      audio.volume = 1;
+      promises.push(audio.play().catch(() => {}));
+    });
+    const video = $('playingScreen');
+    if (video && video.srcObject && !video.muted) promises.push(video.play().catch(() => {}));
+    state.playbackBlocked = false;
+    renderToolbar();
+    Promise.all(promises).then(() => {
+      toast(state.remoteAudio.size ? 'Áudio liberado. Confira também o volume do Windows.' :
+        'Som habilitado. Quando alguém ligar o microfone, você poderá ouvir.');
     });
   }
   function reconcileOutgoing() {
@@ -775,6 +866,7 @@
       if (state.incoming.get(key) !== call) return;
       if (kind === 'screen') {
         state.remoteScreens.set(call.peer, stream);
+        state.mediaRequests.delete(call.peer + ':screen');
         state.stageKey = '';
         renderStage();
         renderToolbar();
@@ -787,8 +879,9 @@
         audio.srcObject = stream;
         audio.dataset.peer = call.peer;
         document.body.appendChild(audio);
-        audio.play().catch(() => {});
+        audio.play().catch(() => markPlaybackBlocked());
         state.remoteAudio.set(call.peer, audio);
+        state.mediaRequests.delete(call.peer + ':mic');
       }
     });
     call.on('close', () => removeIncoming(key, call));
@@ -822,6 +915,7 @@
   $('leaveVoiceBtn').addEventListener('click', leaveVoice);
   $('toggleMicBtn').addEventListener('click', toggleMic);
   $('shareScreenBtn').addEventListener('click', toggleScreen);
+  $('enableAudioBtn').addEventListener('click', unlockPlayback);
   $('membersBtn').addEventListener('click', () => {
     state.showMembers = !state.showMembers;
     renderMembers();
