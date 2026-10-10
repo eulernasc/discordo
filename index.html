@@ -83,9 +83,28 @@
   </div>
   <div id="overlay" class="overlay hidden"><div id="dialog" class="dialog" role="dialog" aria-modal="true"></div></div>
   <div id="toast" class="toast hidden"></div>
-  <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js" defer></script>
-  <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js" defer></script>
-  <script src="app.js" defer></script>
-  <script src="pwa.js" defer></script>
+  <!-- The interface starts BEFORE optional external libraries. -->
+  <script src="app.js?v=20261010-boot2" defer></script>
+  <script src="pwa.js?v=20261010-boot2" defer></script>
+  <script src="deps.js?v=20261010-boot2" defer></script>
+  <script>
+    window.addEventListener('load', function () {
+      setTimeout(function () {
+        if (window.discordoBooted) return;
+        var status = document.getElementById('profileStatus');
+        if (status) status.textContent = 'Erro ao iniciar';
+        if (document.querySelector('.startup-error')) return;
+        var notice = document.createElement('div');
+        notice.className = 'startup-error';
+        notice.setAttribute('role', 'alert');
+        notice.textContent = 'Houve um problema ao iniciar o aplicativo. ';
+        var retry = document.createElement('button');
+        retry.textContent = 'Tentar novamente';
+        retry.addEventListener('click', function () { location.reload(); });
+        notice.appendChild(retry);
+        document.body.appendChild(notice);
+      }, 6000);
+    });
+  </script>
 </body>
 </html>
