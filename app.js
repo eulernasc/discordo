@@ -211,9 +211,12 @@
     $('leaveVoiceBtn').classList.toggle('hidden', !joined);
     $('toggleMicBtn').disabled = !joined;
     $('shareScreenBtn').disabled = !joined;
-    $('enableAudioBtn').classList.toggle('hidden', !joined);
-    $('enableAudioBtn').innerHTML = state.playbackBlocked ? '<i data-lucide="volume-x"></i><span>Liberar áudio</span>' : '<i data-lucide="volume-2"></i><span>Testar som</span>';
-    $('enableAudioBtn').classList.toggle('audio-blocked', state.playbackBlocked);
+    const audioButton = $('enableAudioBtn');
+    if (audioButton) {
+      audioButton.classList.toggle('hidden', !joined);
+      audioButton.innerHTML = state.playbackBlocked ? '<i data-lucide="volume-x"></i><span>Liberar áudio</span>' : '<i data-lucide="volume-2"></i><span>Testar som</span>';
+      audioButton.classList.toggle('audio-blocked', state.playbackBlocked);
+    }
     $('toggleMicBtn').classList.toggle('active-mic', !!state.micStream);
     $('toggleMicBtn').innerHTML = state.micStream ? '<i data-lucide="mic"></i><span>Microfone ligado</span>' : '<i data-lucide="mic-off"></i><span>Ativar microfone</span>';
     $('shareScreenBtn').classList.toggle('streaming', !!state.screenStream);
@@ -1006,8 +1009,8 @@
   $('leaveVoiceBtn').addEventListener('click', leaveVoice);
   $('toggleMicBtn').addEventListener('click', toggleMic);
   $('shareScreenBtn').addEventListener('click', toggleScreen);
-  $('enableAudioBtn').addEventListener('click', unlockPlayback);
-  $('retryMediaBtn').addEventListener('click', retryMediaNow);
+  $('enableAudioBtn')?.addEventListener('click', unlockPlayback);
+  $('retryMediaBtn')?.addEventListener('click', retryMediaNow);
   $('membersBtn').addEventListener('click', () => {
     state.showMembers = !state.showMembers;
     renderMembers();
