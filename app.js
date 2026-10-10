@@ -16,7 +16,17 @@
 
   const saved = load(STORAGE, {});
   let nickname = typeof saved.nickname === 'string' ? saved.nickname : '';
-  let servers = Array.isArray(saved.servers) ? saved.servers : [];
+  // Preserve existing server IDs, but recover safely from older or malformed local data.
+  let servers = Array.isArray(saved.servers) ? saved.servers.filter((item) =>
+    item && typeof item.id === 'string' && /^[a-z0-9-]{4,28}$/i.test(item.id) &&
+    typeof item.name === 'string'
+  ) : [];
+  servers.forEach((item) => {
+    if (!Array.isArray(item.channels) || !item.channels.some((c) => c && c.type === 'text') ||
+        !item.channels.some((c) => c && c.type === 'voice')) {
+      item.channels = DEFAULT_CHANNELS.map((c) => ({ ...c }));
+    }
+  });
   let selectedServerId = saved.selectedServerId || '';
   const inviteId = new URLSearchParams(location.search).get('room');
   const validInviteId = inviteId && /^[a-z0-9-]{4,28}$/i.test(inviteId) ? inviteId.toLowerCase() : '';
@@ -558,9 +568,10 @@
     state.members = new Map();
     renderAll();
     if (typeof window.Peer !== 'function') {
-      state.connecting = false;
-      toast('Não foi possível carregar a conexão WebRTC. Confira sua internet ou bloqueadores.');
-      renderPresence();
+      state.connecting = true;
+      $('profileStatus').textContent = 'Aguardando conexão...';
+      // Dependency loader signals peer-ready once it has loaded PeerJS.
+      // The channel UI must remain usable while the network initializes.
       return;
     }
     const hostId = PEER_PREFIX + selectedServerId;
@@ -1010,9 +1021,48 @@
     if (state.screenStream) state.screenStream.getTracks().forEach((t) => t.stop());
     if (state.micStream) state.micStream.getTracks().forEach((t) => t.stop());
   });
-  save();
-  persistURL();
-  renderAll();
-  if (nickname) connectRoom();
-  else identityDialog(false);
+  function showStartupFailure(error) {
+    console.error('Discordo: falha na inicialização', error);
+    const status = $('profileStatus');
+    if (status) status.textContent = 'Falha ao iniciar';
+    const banner = document.createElement('div');
+    banner.className = 'startup-error';
+    banner.setAttribute('role', 'alert');
+    banner.textContent = 'O Discordo não conseguiu iniciar. ';
+    const reload = document.createElement('button');
+    reload.type = 'button';
+    reload.textContent = 'Recarregar aplicativo';
+    reload.addEventListener('click', () => location.reload());
+    banner.appendChild(reload);
+    document.body.appendChild(banner);
+  }
+
+  window.addEventListener('discordo-peer-ready', () => {
+    if (nickname && !state.peer) connectRoom();
+  });
+  window.addEventListener('discordo-icons-ready', () => icons());
+  window.addEventListener('discordo-peer-error', () => {
+    if (!state.connected) {
+      state.connecting = false;
+      $('profileStatus').textContent = 'Conexão indisponível';
+      toast('Não foi possível acessar o serviço de conexão. Verifique a internet e tente recarregar.');
+    }
+  });
+
+  try {
+    save();
+    persistURL();
+    renderAll();
+    window.discordoBooted = true;
+    if (nickname) {
+      if (typeof window.Peer === 'function') connectRoom();
+      else {
+        state.connecting = true;
+        renderServers();
+        $('profileStatus').textContent = 'Aguardando conexão...';
+      }
+    } else identityDialog(false);
+  } catch (error) {
+    showStartupFailure(error);
+  }
 })();
