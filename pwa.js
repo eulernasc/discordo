@@ -86,7 +86,7 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js?v=20261010-boot2', { scope: './', updateViaCache: 'none' }).catch((error) => {
+      navigator.serviceWorker.register('./sw.js?v=20261010-boot3', { scope: './', updateViaCache: 'none' }).catch((error) => {
         console.warn('Discordo: service worker indisponível', error);
       });
     });
